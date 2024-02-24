@@ -425,6 +425,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fern"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9f0c14694cbd524c8720dd69b0e3179344f04ebb5f90f2e4a440c6ea3b2f1ee"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "foreign-types"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -768,10 +777,6 @@ dependencies = [
  "objc",
  "paste",
 ]
-
-[[package]]
-name = "move_to_fnut"
-version = "0.1.0"
 
 [[package]]
 name = "naga"
@@ -1470,17 +1475,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-wasm"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4575c663a174420fa2d78f4108ff68f65bf2fbb7dd89f33749b6e826b3626e07"
-dependencies = [
- "tracing",
- "tracing-subscriber",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "ttf-parser"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1845,11 +1839,11 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
+ "fern",
  "log",
  "pollster",
  "tracing",
  "tracing-subscriber",
- "tracing-wasm",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

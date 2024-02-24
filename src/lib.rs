@@ -2,7 +2,7 @@
 use std::{borrow::Cow, sync::Arc};
 
 #[allow(unused)]
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, trace, warn, span, Level};
 use tracing_subscriber::filter::EnvFilter;
 use winit::{
     event::{Event, WindowEvent},
@@ -16,6 +16,9 @@ use wasm_bindgen::prelude::*;
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub async fn run() {
     init_logging();
+    let span = span!(Level::TRACE, "run");
+    let _guard = span.enter();
+    info!("Running");
 
     #[cfg(not(target_arch = "wasm32"))]
     let builder = WindowBuilder::new();
@@ -184,20 +187,23 @@ pub async fn run() {
 }
 
 fn init_logging() {
+    #[cfg(not(target_arch = "wasm32"))]
+    tracing_subscriber::fmt()
+        .event_format(
+            tracing_subscriber::fmt::format()
+                .with_source_location(true)
+                .without_time()
+                .compact(),
+        )
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
     #[cfg(target_arch = "wasm32")]
     {
-        /*let base_level = log::LevelFilter::Info;
+        let base_level = log::LevelFilter::Info;
         let wgpu_level = log::LevelFilter::Error;
+
         fern::Dispatch::new()
-            .format(|out, message, record| {
-                out.finish(format_args!(
-                    "{} \"{}\":{} {}",
-                    record.level(),
-                    record.file().unwrap_or(""),
-                    record.line().unwrap_or(0),
-                    message
-                ))
-            })
             .level(base_level)
             .level_for("wgpu_core", wgpu_level)
             .level_for("wgpu_hal", wgpu_level)
@@ -205,22 +211,6 @@ fn init_logging() {
             .chain(fern::Output::call(console_log::log))
             .apply()
             .unwrap();
-        std::panic::set_hook(Box::new(console_error_panic_hook::hook));*/
-        //tracing_wasm::set_as_global_default();
+        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     }
-
-    let subscriber = tracing_subscriber::fmt()
-        .event_format(
-            tracing_subscriber::fmt::format()
-                .with_source_location(true)
-                .without_time(),
-                //.compact(),
-        )
-        .with_env_filter(EnvFilter::from_default_env());
-    #[cfg(not(target_arch = "wasm32"))]
-    subscriber.init();
-    #[cfg(target_arch = "wasm32")]
-    tracing_wasm::set_as_global_default();
-
-    info!("Logging initialized");
 }
