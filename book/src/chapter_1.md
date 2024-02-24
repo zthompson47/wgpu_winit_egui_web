@@ -28,3 +28,5 @@
 
 ## create device and queue
 * cfg_if to conditionally let event_loop_fuction
+
+## fix window escape closure by cloning as arc
