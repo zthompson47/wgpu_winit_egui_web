@@ -2,12 +2,12 @@
 use std::{borrow::Cow, sync::Arc};
 
 #[allow(unused)]
-use tracing::{debug, error, info, trace, warn, span, Level};
+use tracing::{debug, error, info, span, trace, warn, Level};
 use tracing_subscriber::filter::EnvFilter;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{EventLoop, EventLoopWindowTarget},
-    window::WindowBuilder,
+    window::{Window, WindowBuilder},
 };
 
 #[cfg(target_arch = "wasm32")]
@@ -18,7 +18,7 @@ pub async fn run() {
     init_logging();
     let span = span!(Level::TRACE, "run");
     let _guard = span.enter();
-    info!("Running");
+    trace!("Running");
 
     #[cfg(not(target_arch = "wasm32"))]
     let builder = WindowBuilder::new();
@@ -85,6 +85,7 @@ pub async fn run() {
         use winit::platform::web::EventLoopExtWebSys;
         EventLoop::spawn
     };
+
     #[cfg(not(target_arch = "wasm32"))]
     let event_loop_function = EventLoop::run;
 
@@ -94,6 +95,48 @@ pub async fn run() {
         pipeline: wgpu::RenderPipeline,
     }
 
+    impl Render {
+        fn new(
+            adapter: &wgpu::Adapter,
+            window: &Window,
+            surface: &wgpu::Surface<'_>,
+            device: &wgpu::Device,
+        ) -> Self {
+            let swapchain_capabilities = surface.get_capabilities(&adapter);
+            let swapchain_format = swapchain_capabilities.formats[0];
+
+            let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
+            });
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &[],
+                push_constant_ranges: &[],
+            });
+            let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: None,
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: "vs_main",
+                    buffers: &[],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: "fs_main",
+                    targets: &[Some(swapchain_format.into())],
+                }),
+                primitive: wgpu::PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+            });
+
+            Render { shader, pipeline }
+        }
+    }
+
     let mut render: Option<Render> = None;
 
     let _ = (event_loop_function)(
@@ -101,12 +144,8 @@ pub async fn run() {
         move |event: Event<()>, _target: &EventLoopWindowTarget<()>| match event {
             Event::Resumed => {
                 info!("resumed");
-                if surface.is_none() {
+                if render.is_none() {
                     let new_surface = instance.create_surface(window.clone()).unwrap();
-                    info!("{new_surface:?}");
-                    let swapchain_capabilities = new_surface.get_capabilities(&adapter);
-                    info!("{swapchain_capabilities:?}");
-                    let swapchain_format = swapchain_capabilities.formats[0];
 
                     let mut size = window.inner_size();
                     size.width = size.width.max(1);
@@ -115,48 +154,12 @@ pub async fn run() {
                     let config = new_surface
                         .get_default_config(&adapter, size.width, size.height)
                         .unwrap();
-
                     new_surface.configure(&device, &config);
 
-                    //*surface = Some(instance.create_surface(window.clone()).unwrap());
+                    render = Some(Render::new(&adapter, &window, &new_surface, &device));
                     surface = Some(new_surface);
                     debug!("made surface: {surface:?}");
-
-                    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                        label: None,
-                        source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
-                            "shader.wgsl"
-                        ))),
-                    });
-
-                    let pipeline_layout =
-                        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                            label: None,
-                            bind_group_layouts: &[],
-                            push_constant_ranges: &[],
-                        });
-
-                    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                        label: None,
-                        layout: Some(&pipeline_layout),
-                        vertex: wgpu::VertexState {
-                            module: &shader,
-                            entry_point: "vs_main",
-                            buffers: &[],
-                        },
-                        fragment: Some(wgpu::FragmentState {
-                            module: &shader,
-                            entry_point: "fs_main",
-                            targets: &[Some(swapchain_format.into())],
-                        }),
-                        primitive: wgpu::PrimitiveState::default(),
-                        depth_stencil: None,
-                        multisample: wgpu::MultisampleState::default(),
-                        multiview: None,
-                    });
-
-                    render = Some(Render { shader, pipeline });
-                    info!("{render:?}");
+                    debug!("made render: {render:?}");
                 }
             }
             Event::Suspended => {
@@ -200,17 +203,7 @@ fn init_logging() {
 
     #[cfg(target_arch = "wasm32")]
     {
-        let base_level = log::LevelFilter::Info;
-        let wgpu_level = log::LevelFilter::Error;
-
-        fern::Dispatch::new()
-            .level(base_level)
-            .level_for("wgpu_core", wgpu_level)
-            .level_for("wgpu_hal", wgpu_level)
-            .level_for("naga", wgpu_level)
-            .chain(fern::Output::call(console_log::log))
-            .apply()
-            .unwrap();
+        tracing_wasm::set_as_global_default();
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     }
 }
